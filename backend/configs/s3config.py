@@ -43,6 +43,17 @@ class S3Config:
             "url":url
         }
         
+    def generate_all_presigned_urls(self,bucket_name:str,file_key:str,upload_id:str,total_parts:int):
+        urls = []
+        
+        for part_number in range(1, total_parts + 1):
+            url = self.generate_presigned_url(bucket_name, file_key, upload_id, part_number)['url']
+            urls.append({
+                "part_number": part_number,
+                "url": url
+            })
+        return urls
+        
     def complete_multipart_upload(self,bucket_name:str,file_key:str,upload_id:str,parts:list):
         
         res=self.s3.complete_multipart_upload(
