@@ -1,14 +1,19 @@
 import boto3
-
+import os
+from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+from configs.database import get_db
+from utils.video import update_video_status
+load_dotenv()
 
 class S3Config:
 
-    def __init__(self, access_key: str, secret_key: str, region: str):
+    def __init__(self):
         self.s3=boto3.client(
             's3',
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name=region
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            region_name=os.getenv("AWS_REGION")
         )
 
         
@@ -69,3 +74,29 @@ class S3Config:
             "message": "Multipart upload completed successfully",
         }
         
+    def download_object(self,bucket_name:str,file_key:str,download_path:str):
+        
+        self.s3.download_file(
+            Bucket=bucket_name,
+            Key=file_key,
+            Filename=download_path
+        )
+        return {
+            "message": "File downloaded successfully",
+        }
+        
+    def upload_object(self,bucket_name:str,file_key:str,video_id:int):
+        db=next(get_db())
+        file_loc=file_key+".mp4"
+        file_key_s3="videos/"+file_key
+        self.s3.upload_file(
+            Filename=file_loc,
+            Bucket=bucket_name,
+            Key=file_key_s3
+        )
+        update_video_status(db=db,video_id=video_id,status="uploaded")
+        return {
+            "message": "File uploaded successfully",
+        }
+        
+s3=S3Config()
