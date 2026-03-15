@@ -27,19 +27,5 @@ def entry_point():
 def generate_dummy_data():
     return {"message": "Dummy data generated!"}
 
-# @app.post("/send-test-message")
-# def send_test_message():
-#     sqs.send_message("Hello da punda mavane")
-#     return {"message": "Message sent to SQS!"}
-
-# @app.get("/receive-messages")
-# def receive_messages():
-#     messages=sqs.receive_messages()
-#     return {"messages": messages}
-
-# @app.delete("/delete-message")
-# def delete_message(receipt_handle:str):
-#     sqs.delete_message(receipt_handle)
-#     return {"message": "Message deleted from SQS!"}
 
 app.include_router(upload_router)

@@ -9,11 +9,13 @@ def create_video(db:Session,file_key:str)->Video:
     print("Created video record with ID:", new_video.id)
     return new_video
 
-def get_video(db:Session,video_id:int):
-    return db.query(Video).filter(Video.id == video_id).first()
+def get_video_status(db:Session,video_id:int):
+    video=db.query(Video).filter(Video.id == video_id).first()
+    return video.status if video else None
 
 def update_video_status(db:Session,video_id:int,status:str):
     video=db.query(Video).filter(Video.id == video_id).first()
+    print(f"Updating video ID {video_id} status to {status}")
     if video:
         video.status=status
         db.commit()

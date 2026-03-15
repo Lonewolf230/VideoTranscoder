@@ -86,15 +86,13 @@ class S3Config:
         }
         
     def upload_object(self,bucket_name:str,file_key:str,video_id:int):
-        db=next(get_db())
         file_loc=file_key+".mp4"
-        file_key_s3="videos/"+file_key
+        file_key_s3="transcoded_videos/"+file_key
         self.s3.upload_file(
             Filename=file_loc,
             Bucket=bucket_name,
             Key=file_key_s3
         )
-        update_video_status(db=db,video_id=video_id,status="uploaded")
         return {
             "message": "File uploaded successfully",
         }
