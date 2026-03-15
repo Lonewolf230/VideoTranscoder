@@ -19,82 +19,105 @@ class S3Config:
         
     def create_multipart_upload(self, bucket_name: str, file_key: str):
         
+        try:
+            response = self.s3.create_multipart_upload(
+                Bucket=bucket_name,
+                Key=file_key,
+                ContentType='video/mp4'
+            )
 
-        response = self.s3.create_multipart_upload(
-            Bucket=bucket_name,
-            Key=file_key,
-            ContentType='video/mp4'
-        )
-
-        return {
-            "upload_id": response['UploadId'],
-            "file_key": file_key
-        }
+            return {
+                "upload_id": response['UploadId'],
+                "file_key": file_key
+            }
+        except Exception as e:
+            print("Error creating multipart upload:", e)
+            raise 
     
     def generate_presigned_url(self, bucket_name: str, file_key: str, upload_id: str, part_number: int):
         
-        url = self.s3.generate_presigned_url(
-            ClientMethod='upload_part',
-            Params={
-                'Bucket': bucket_name,
-                'Key': file_key,
-                'UploadId': upload_id,
-                'PartNumber': part_number
-            },
-            ExpiresIn=3600
-        )
-        
-        return {
-            "url":url
-        }
+        try:
+            url = self.s3.generate_presigned_url(
+                ClientMethod='upload_part',
+                Params={
+                    'Bucket': bucket_name,
+                    'Key': file_key,
+                    'UploadId': upload_id,
+                    'PartNumber': part_number
+                },
+                ExpiresIn=3600
+            )
+            
+            return {
+                "url":url
+            } 
+        except Exception as e:
+            print("Error generating presigned URL:", e)
+            raise  
         
     def generate_all_presigned_urls(self,bucket_name:str,file_key:str,upload_id:str,total_parts:int):
         urls = []
         
-        for part_number in range(1, total_parts + 1):
-            url = self.generate_presigned_url(bucket_name, file_key, upload_id, part_number)['url']
-            urls.append({
-                "part_number": part_number,
-                "url": url
-            })
-        return urls
+        try:
+            for part_number in range(1, total_parts + 1):
+                url = self.generate_presigned_url(bucket_name, file_key, upload_id, part_number)['url']
+                urls.append({
+                    "part_number": part_number,
+                    "url": url
+                })
+            return urls
+        except Exception as e:
+            print("Error generating presigned URLs:", e)
+            raise 
         
     def complete_multipart_upload(self,bucket_name:str,file_key:str,upload_id:str,parts:list):
         
-        res=self.s3.complete_multipart_upload(
-            Bucket=bucket_name,
-            Key=file_key,
-            UploadId=upload_id,
-            MultipartUpload={
-                'Parts': parts
+        try:
+            self.s3.complete_multipart_upload(
+                Bucket=bucket_name,
+                Key=file_key,
+                UploadId=upload_id,
+                MultipartUpload={
+                    'Parts': parts
+                }
+            )
+            
+            return {
+                "message": "Multipart upload completed successfully",
             }
-        )
-        
-        return {
-            "message": "Multipart upload completed successfully",
-        }
+        except Exception as e:
+            print("Error completing multipart upload:", e)
+            raise 
         
     def download_object(self,bucket_name:str,file_key:str,download_path:str):
         
-        self.s3.download_file(
-            Bucket=bucket_name,
-            Key=file_key,
-            Filename=download_path
-        )
-        return {
-            "message": "File downloaded successfully",
-        }
+        try:
+            self.s3.download_file(
+                Bucket=bucket_name,
+                Key=file_key,
+                Filename=download_path
+            )
+            return {
+                "message": "File downloaded successfully",
+            }
+        except Exception as e:
+            print("Error downloading object:", e)
+            raise 
         
     def upload_object(self,bucket_name:str,file_key:str,video_id:int):
-        file_loc=file_key+".mp4"
-        file_key_s3="transcoded_videos/"+file_key
-        self.s3.upload_file(
-            Filename=file_loc,
-            Bucket=bucket_name,
-            Key=file_key_s3
-        )
-        return {
-            "message": "File uploaded successfully",
-        }
-        
+        try:
+            file_loc=file_key+".mp4"
+            file_key_s3="transcoded_videos/"+file_key
+            self.s3.upload_file(
+                Filename=file_loc,
+                Bucket=bucket_name,
+                Key=file_key_s3
+            )
+            return {
+                "message": "File uploaded successfully",
+            }
+        except Exception as e:
+            print("Error uploading object:", e)
+            raise 
+            
 s3=S3Config()

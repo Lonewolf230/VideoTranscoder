@@ -22,13 +22,13 @@ def upload_files(input_path:list[str],video_id:int):
         p.join()
         
 def upload_worker(bucket_name:str,file_key:str,video_id:int):
-    print(f"Uploading file {file_key} to bucket {bucket_name}...")
-    s3.upload_object(
-        bucket_name=bucket_name,
-        file_key=file_key,
-        video_id=video_id,
-    )
-    print(f"File {file_key} uploaded successfully.")
+    try:
+        s3.upload_file(bucket_name=bucket_name,file_key=file_key)
+        update_video_status(db=next(get_db()), video_id=video_id, status="uploading_back")
+        print(f"Upload complete for file: {file_key}")
+    except Exception as e:
+        print(f"Error uploading file {file_key}:", e)
+        update_video_status(db=next(get_db()), video_id=video_id, status="failed")
     
     
     

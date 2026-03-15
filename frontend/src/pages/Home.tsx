@@ -244,109 +244,150 @@
 // }
 
 import axios from "axios";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const base_url = "http://localhost:8000";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Part = {
   PartNumber: number;
   ETag: string;
 };
 
-type Status = "idle" | "uploading" | "done" | "error";
+type UploaderStatus = "idle" | "uploading" | "done" | "error";
 
-type JobStatus =
-  | "uploading"
+type ProcessStatus =
+  | "pending"
   | "processing"
   | "transcoding"
-  | "ready"
+  | "uploading_back"
+  | "completed"
   | "failed";
 
 type Job = {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  uploadProgress: number;
-  status: JobStatus;
-  createdAt: Date;
-  downloadUrl?: string;
-  errorMessage?: string;
+  videoId: number;
+  fileName: string;   // original browser file name
+  fileKey: string;    // from complete-multipart-upload response
+  createdAt: string;  // ISO string from /process_status
+  processStatus: ProcessStatus;
 };
 
-// ─── Job Card ────────────────────────────────────────────────────────────────
+// ─── Status config ────────────────────────────────────────────────────────────
+
+const STATUS_CFG: Record<
+  ProcessStatus,
+  { label: string; color: string; dot: string; shimmer?: string }
+> = {
+  pending: {
+    label: "Pending",
+    color: "text-zinc-400",
+    dot: "bg-zinc-500 animate-pulse",
+  },
+  processing: {
+    label: "Processing",
+    color: "text-violet-400",
+    dot: "bg-violet-400 animate-pulse",
+    shimmer: "linear-gradient(90deg, #8b5cf6, #a78bfa)",
+  },
+  transcoding: {
+    label: "Transcoding",
+    color: "text-amber-400",
+    dot: "bg-amber-400 animate-pulse",
+    shimmer: "linear-gradient(90deg, #f59e0b, #f97316)",
+  },
+  completed: {
+    label: "Completed",
+    color: "text-emerald-400",
+    dot: "bg-emerald-400",
+  },
+  failed: {
+    label: "Failed",
+    color: "text-red-400",
+    dot: "bg-red-400",
+  },
+  uploading_back: {
+    label: "Uploading Back",
+    color: "text-blue-400",
+    dot: "bg-blue-400 animate-pulse",
+  }
+};
+
+const TERMINAL: ProcessStatus[] = ["completed", "failed"];
+
+// ─── Polling hook ─────────────────────────────────────────────────────────────
+
+function usePollStatus(
+  videoId: number,
+  onUpdate: (status: ProcessStatus, createdAt: string) => void
+) {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await axios.get(
+          `${base_url}/process_status?video_id=${videoId}`
+        );
+        const data: {
+          status: ProcessStatus;
+          created_at: string;
+          file_key: string;
+          id: number;
+        } = res.data;
+        onUpdate(data.status, data.created_at);
+        if (TERMINAL.includes(data.status)) {
+          clearInterval(intervalRef.current!);
+        }
+      } catch {
+        // ignore transient errors, keep polling
+      }
+    };
+
+    poll();
+    intervalRef.current = setInterval(poll, 4000);
+    return () => clearInterval(intervalRef.current!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoId]);
+}
+
+// ─── JobCard ──────────────────────────────────────────────────────────────────
 
 function JobCard({
   job,
-  onRetry,
+  onUpdate,
 }: {
   job: Job;
-  onRetry: (id: string) => void;
+  onUpdate: (videoId: number, status: ProcessStatus, createdAt: string) => void;
 }) {
-  const formatSize = (bytes: number) => {
-    if (bytes >= 1e9) return (bytes / 1e9).toFixed(2) + " GB";
-    if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + " MB";
-    return (bytes / 1e3).toFixed(0) + " KB";
-  };
+  usePollStatus(job.videoId, (status, createdAt) =>
+    onUpdate(job.videoId, status, createdAt)
+  );
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
+  const cfg = STATUS_CFG[job.processStatus];
+  const isActive =
+    job.processStatus === "processing" || job.processStatus === "transcoding";
 
-  const statusConfig: Record<
-    JobStatus,
-    { label: string; color: string; dot: string; showBar: boolean }
-  > = {
-    uploading: {
-      label: "Uploading",
-      color: "text-cyan-400",
-      dot: "bg-cyan-400 animate-pulse",
-      showBar: true,
-    },
-    processing: {
-      label: "Processing",
-      color: "text-violet-400",
-      dot: "bg-violet-400 animate-pulse",
-      showBar: false,
-    },
-    transcoding: {
-      label: "Transcoding",
-      color: "text-amber-400",
-      dot: "bg-amber-400 animate-pulse",
-      showBar: false,
-    },
-    ready: {
-      label: "Ready",
-      color: "text-emerald-400",
-      dot: "bg-emerald-400",
-      showBar: false,
-    },
-    failed: {
-      label: "Failed",
-      color: "text-red-400",
-      dot: "bg-red-400",
-      showBar: false,
-    },
+  const formatDate = (iso: string) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
-
-  const cfg = statusConfig[job.status];
 
   return (
     <div
-      className="group relative rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 transition-all duration-200 hover:border-zinc-700 hover:bg-zinc-900"
+      className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 transition-all duration-200 hover:border-zinc-700"
       style={{ animation: "slideIn 0.25s ease-out both" }}
     >
-      {/* Top row */}
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-white truncate leading-tight">
-            {job.fileName}
-          </p>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            {formatSize(job.fileSize)} · {formatTime(job.createdAt)}
-          </p>
-        </div>
-
-        {/* Status badge */}
+      {/* File name + status */}
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-sm font-semibold text-white truncate leading-tight flex-1">
+          {job.fileName}
+        </p>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
           <span className={`text-xs font-semibold ${cfg.color}`}>
@@ -355,138 +396,54 @@ function JobCard({
         </div>
       </div>
 
-      {/* Progress bar (only while uploading) */}
-      {cfg.showBar && (
-        <div className="mb-3">
-          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 transition-all duration-500"
-              style={{ width: `${job.uploadProgress}%` }}
-            />
-          </div>
-          <p className="text-xs text-zinc-500 mt-1 tabular-nums">
-            {job.uploadProgress}%
-          </p>
+      {/* File key */}
+      <p className="text-xs text-zinc-500 truncate mb-1" title={job.fileKey}>
+        <span className="text-zinc-600">key </span>
+        {job.fileKey}
+      </p>
+
+      {/* Created at */}
+      <p className="text-xs text-zinc-600 mb-3">
+        <span className="text-zinc-700">created </span>
+        {formatDate(job.createdAt)}
+      </p>
+
+      {/* Shimmer bar for in-progress states */}
+      {isActive && (
+        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{
+              background: cfg.shimmer,
+              animation: "shimmer 1.6s ease-in-out infinite",
+              width: "40%",
+            }}
+          />
         </div>
       )}
 
-      {/* Indeterminate shimmer for processing/transcoding */}
-      {(job.status === "processing" || job.status === "transcoding") && (
-        <div className="mb-3">
-          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                background:
-                  job.status === "transcoding"
-                    ? "linear-gradient(90deg, #f59e0b, #f97316)"
-                    : "linear-gradient(90deg, #8b5cf6, #a78bfa)",
-                animation: "shimmer 1.6s ease-in-out infinite",
-                width: "45%",
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Error message */}
-      {job.status === "failed" && job.errorMessage && (
-        <p className="text-xs text-red-400/80 mb-2">{job.errorMessage}</p>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex gap-2 mt-1">
-        {job.status === "ready" && job.downloadUrl && (
-          <a
-            href={job.downloadUrl}
-            download
-            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"
-              />
-            </svg>
-            Download
-          </a>
-        )}
-
-        {job.status === "failed" && (
-          <button
-            onClick={() => onRetry(job.id)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.9-3.4M20 15a9 9 0 01-14.9 3.4"
-              />
-            </svg>
-            Retry
-          </button>
-        )}
-
-        {job.status === "ready" && (
-          <button className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 transition-colors">
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"
-              />
-            </svg>
-            Re-upload
-          </button>
-        )}
-      </div>
+      {/* Video ID */}
+      <p className="mt-3 text-xs text-zinc-700 tabular-nums">
+        id #{job.videoId}
+      </p>
     </div>
   );
 }
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 function Sidebar({
   jobs,
-  onRetry,
+  onUpdate,
   onClear,
 }: {
   jobs: Job[];
-  onRetry: (id: string) => void;
+  onUpdate: (videoId: number, status: ProcessStatus, createdAt: string) => void;
   onClear: () => void;
 }) {
-  const counts = {
-    uploading: jobs.filter((j) => j.status === "uploading").length,
-    active: jobs.filter(
-      (j) => j.status === "processing" || j.status === "transcoding"
-    ).length,
-    ready: jobs.filter((j) => j.status === "ready").length,
-    failed: jobs.filter((j) => j.status === "failed").length,
-  };
-
   return (
     <div className="w-80 shrink-0 flex flex-col h-screen bg-zinc-950 border-l border-zinc-800/70">
-      {/* Sidebar header */}
+      {/* Header */}
       <div className="px-5 py-5 border-b border-zinc-800/70">
         <div className="flex items-center justify-between">
           <div>
@@ -507,28 +464,30 @@ function Sidebar({
           )}
         </div>
 
+        {/* Summary pills */}
         {jobs.length > 0 && (
           <div className="flex gap-2 mt-3 flex-wrap">
-            {counts.uploading > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 text-xs font-medium">
-                {counts.uploading} uploading
-              </span>
-            )}
-            {counts.active > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs font-medium">
-                {counts.active} processing
-              </span>
-            )}
-            {counts.ready > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-                {counts.ready} ready
-              </span>
-            )}
-            {counts.failed > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 text-xs font-medium">
-                {counts.failed} failed
-              </span>
-            )}
+            {(
+              [
+                "pending",
+                "processing",
+                "transcoding",
+                "completed",
+                "failed",
+              ] as ProcessStatus[]
+            ).map((s) => {
+              const count = jobs.filter((j) => j.processStatus === s).length;
+              if (!count) return null;
+              const cfg = STATUS_CFG[s];
+              return (
+                <span
+                  key={s}
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color} bg-zinc-800/60`}
+                >
+                  {count} {s}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
@@ -554,13 +513,12 @@ function Sidebar({
             </div>
             <p className="text-sm text-zinc-600">No uploads yet</p>
             <p className="text-xs text-zinc-700 mt-1">
-              Jobs appear here as you upload
+              Jobs appear here after upload completes
             </p>
           </div>
         ) : (
-          // Most recent first
           [...jobs].reverse().map((job) => (
-            <JobCard key={job.id} job={job} onRetry={onRetry} />
+            <JobCard key={job.videoId} job={job} onUpdate={onUpdate} />
           ))
         )}
       </div>
@@ -578,7 +536,7 @@ export default function Home() {
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState<number | null>(null);
-  const [status, setStatus] = useState<Status>("idle");
+  const [status, setStatus] = useState<UploaderStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [phaseLabel, setPhaseLabel] = useState("");
 
@@ -590,10 +548,15 @@ export default function Home() {
     return (bytes / 1e3).toFixed(0) + " KB";
   };
 
-  // Helper to update a job in state
-  const updateJob = (id: string, patch: Partial<Job>) => {
+  const updateJobStatus = (
+    videoId: number,
+    processStatus: ProcessStatus,
+    createdAt: string
+  ) => {
     setJobs((prev) =>
-      prev.map((j) => (j.id === id ? { ...j, ...patch } : j))
+      prev.map((j) =>
+        j.videoId === videoId ? { ...j, processStatus, createdAt } : j
+      )
     );
   };
 
@@ -617,21 +580,10 @@ export default function Home() {
     const totalParts = Math.ceil(file.size / chunkSize);
     parts.current = [];
 
-    // Create a job immediately
-    const jobId = crypto.randomUUID();
-    const newJob: Job = {
-      id: jobId,
-      fileName: file.name,
-      fileSize: file.size,
-      uploadProgress: 0,
-      status: "uploading",
-      createdAt: new Date(),
-    };
-    setJobs((prev) => [...prev, newJob]);
-
     setStatus("uploading");
 
     try {
+      // Phase 1: Init
       setPhaseLabel("Initialising upload…");
       setProgress(0);
 
@@ -639,8 +591,8 @@ export default function Home() {
       upload_id.current = initRes.data.upload_id;
       fileKey.current = initRes.data.file_key;
       setProgress(10);
-      updateJob(jobId, { uploadProgress: 10 });
 
+      // Phase 2: Presigned URLs
       setPhaseLabel("Preparing chunk URLs…");
       const presignedUrlsRes = await axios.post(base_url + "/part-url", null, {
         params: {
@@ -649,10 +601,10 @@ export default function Home() {
           file_key: fileKey.current,
         },
       });
-
       const presignedUrls: { part_number: number; url: string }[] =
         presignedUrlsRes.data;
 
+      // Phase 3: Upload chunks
       setPhaseLabel(`Uploading chunks… (0 / ${totalParts})`);
       let completedParts = 0;
 
@@ -666,22 +618,24 @@ export default function Home() {
             headers: { "Content-Type": "application/octet-stream" },
           });
 
-          const etag = res.headers.etag;
-          parts.current[partNumber - 1] = { PartNumber: partNumber, ETag: etag };
+          parts.current[partNumber - 1] = {
+            PartNumber: partNumber,
+            ETag: res.headers.etag,
+          };
           completedParts += 1;
 
-          const chunkProgress = 10 + Math.round((completedParts / totalParts) * 80);
+          const chunkProgress =
+            10 + Math.round((completedParts / totalParts) * 80);
           setProgress(chunkProgress);
           setPhaseLabel(
             `Uploading chunks… (${completedParts} / ${totalParts})`
           );
-          updateJob(jobId, { uploadProgress: chunkProgress });
         })
       );
 
+      // Phase 4: Complete
       setPhaseLabel("Completing upload…");
       setProgress(90);
-      updateJob(jobId, { uploadProgress: 90 });
 
       const completeRes = await axios.post(
         base_url + "/complete-multipart-upload",
@@ -692,47 +646,35 @@ export default function Home() {
         }
       );
 
+      console.log(completeRes)
+
       setProgress(100);
       setPhaseLabel("Upload complete!");
       setStatus("done");
 
-      // Transition job → processing, then simulate transcoding → ready
-      updateJob(jobId, { uploadProgress: 100, status: "processing" });
+      // ── Push to sidebar ────────────────────────────────────────────────────
+      const { file_key, video_id } = completeRes.data as {
+        file_key: string;
+        video_id: number;
+      };
 
-      // Simulate post-upload pipeline stages
-      // In production, replace these timeouts with real polling / websocket updates
-      setTimeout(() => updateJob(jobId, { status: "transcoding" }), 2500);
-      setTimeout(() => {
-        updateJob(jobId, {
-          status: "ready",
-          downloadUrl: completeRes.data?.download_url ?? "#",
-        });
-      }, 6000);
+      console.log("[UPLOAD COMPLETE] video_id:", video_id, "file_key:", file_key);
+
+      setJobs((prev) => [
+        ...prev,
+        {
+          videoId: video_id,
+          fileName: file.name,
+          fileKey: file_key,
+          createdAt: "",          // populated on first poll
+          processStatus: "pending",
+        },
+      ]);
     } catch (err) {
       console.error("[ERROR]", err);
       setStatus("error");
       setPhaseLabel("Something went wrong.");
-      updateJob(jobId, {
-        status: "failed",
-        errorMessage: "Upload failed. Check console for details.",
-      });
     }
-  };
-
-  const handleRetry = (id: string) => {
-    // Reset the job and let the user re-select + upload manually.
-    // You could auto-trigger a retry here if you persist file refs per job.
-    setJobs((prev) => prev.filter((j) => j.id !== id));
-    setStatus("idle");
-    setProgress(0);
-    setPhaseLabel("");
-    setFileName(null);
-    setFileSize(null);
-    vidfile.current = null;
-  };
-
-  const handleClearAll = () => {
-    setJobs([]);
   };
 
   const totalParts = fileSize ? Math.ceil(fileSize / (10 * 1024 * 1024)) : 0;
@@ -746,7 +688,6 @@ export default function Home() {
 
   return (
     <>
-      {/* Keyframe animations injected once */}
       <style>{`
         @keyframes slideIn {
           from { opacity: 0; transform: translateY(8px); }
@@ -759,10 +700,9 @@ export default function Home() {
       `}</style>
 
       <div className="flex h-screen bg-zinc-950 overflow-hidden">
-        {/* ── Main uploader panel ── */}
+        {/* ── Uploader ── */}
         <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
           <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
-            {/* Header */}
             <div className="mb-8">
               <span className="text-xs font-semibold tracking-widest text-cyan-400 uppercase">
                 S3 Multipart
@@ -775,7 +715,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* File picker */}
             <label className="block w-full cursor-pointer mb-4">
               <div
                 className={`w-full py-5 px-4 rounded-xl border-2 border-dashed transition-all duration-150 text-center
@@ -814,7 +753,6 @@ export default function Home() {
               />
             </label>
 
-            {/* Upload button */}
             <button
               onClick={handleUpload}
               disabled={
@@ -829,7 +767,6 @@ export default function Home() {
                 : "Upload File"}
             </button>
 
-            {/* Progress section */}
             {status !== "idle" && (
               <div className="mt-6 pt-5 border-t border-zinc-800">
                 <div className="flex justify-between items-center mb-2">
@@ -838,14 +775,12 @@ export default function Home() {
                     {progress}%
                   </span>
                 </div>
-
                 <div className="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${progressColor} transition-all duration-500`}
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-
                 <div className="mt-3 flex justify-between text-zinc-600 text-xs">
                   <span className={progress >= 10 ? "text-cyan-500" : ""}>
                     Init
@@ -868,7 +803,12 @@ export default function Home() {
           </div>
         </div>
 
-        <Sidebar jobs={jobs} onRetry={handleRetry} onClear={handleClearAll} />
+        {/* ── Sidebar ── */}
+        <Sidebar
+          jobs={jobs}
+          onUpdate={updateJobStatus}
+          onClear={() => setJobs([])}
+        />
       </div>
     </>
   );

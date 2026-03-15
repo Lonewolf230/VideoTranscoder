@@ -22,8 +22,12 @@ def transcode_480(input_path:str):
         '-vf', 'scale=640:480',
         output_path
     ]
-    subprocess.run(command, check=True)
-    print("Transcoding to 480p completed successfully")
+    try:
+        subprocess.run(command, check=True)
+        print("Transcoding to 480p completed successfully")
+    except subprocess.CalledProcessError as e:
+        print("Error during transcoding to 480p:", e)
+        raise e
     
 def transcode_720(input_path:str):
     output_path=input_path.split(".")[0]+"_720p.mp4"
@@ -33,5 +37,9 @@ def transcode_720(input_path:str):
         '-vf', 'scale=1280:720',
         output_path
     ]
-    subprocess.run(command, check=True)
-    print("Transcoding to 720p completed successfully")
+    try:
+        subprocess.run(command, check=True)
+        print("Transcoding to 720p completed successfully")
+    except subprocess.CalledProcessError as e:
+        print("Error during transcoding to 720p:", e)
+        raise e

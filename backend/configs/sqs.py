@@ -23,6 +23,7 @@ class SQSClient:
             print("Message sent to SQS successfully")
         except Exception as e:
             print("Error sending message to SQS:", e)
+            raise
             
     def receive_message(self,max_messages:int=1):
         
@@ -47,6 +48,7 @@ class SQSClient:
             print("Message deleted from SQS successfully")
         except Exception as e:
             print("Error deleting message from SQS:", e)
+            raise
             
         
     
