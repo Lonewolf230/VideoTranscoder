@@ -9,6 +9,8 @@ class Video(Base):
     file_key = Column(String, nullable=False)
 
     status = Column(String, nullable=False, default="pending")
+    
+    file_name = Column(String, nullable=True)
 
     created_at = Column(
         TIMESTAMP,

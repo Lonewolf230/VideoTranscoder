@@ -9,13 +9,14 @@ import uuid
 from utils.video import create_video
 
 
-def generate_multipart_upload():
+def generate_multipart_upload(file_name:str):
 
     try:
-        file_key = f"videos/{uuid.uuid4()}.mp4"
+        file_key = f"videos/{uuid.uuid4()}"
         res = s3.create_multipart_upload(
             bucket_name=os.getenv("BUCKET_NAME"),
-            file_key=file_key
+            file_key=file_key,
+            file_name=file_name
         )
 
         return res
@@ -38,7 +39,7 @@ def generate_all_presigned_urls(upload_id:str,total_parts:int,file_key:str):
         print("Error generating presigned URLs:", e)
         raise 
 
-def complete_multipart_upload(upload_id:str, parts:list,file_key:str,db):
+def complete_multipart_upload(upload_id:str, parts:list,file_key:str,db,file_name:str):
     
     try:   
         s3.complete_multipart_upload(
@@ -52,7 +53,7 @@ def complete_multipart_upload(upload_id:str, parts:list,file_key:str,db):
         raise
     
     try:
-        vid_res=create_video(db=db,file_key=file_key)
+        vid_res=create_video(db=db,file_key=file_key,file_name=file_name)
         message_body={
             "file_key":vid_res.file_key,
             "video_id":vid_res.id

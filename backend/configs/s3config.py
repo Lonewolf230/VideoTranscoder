@@ -17,13 +17,16 @@ class S3Config:
         )
 
         
-    def create_multipart_upload(self, bucket_name: str, file_key: str):
+    def create_multipart_upload(self, bucket_name: str, file_key: str,file_name:str):
         
         try:
             response = self.s3.create_multipart_upload(
                 Bucket=bucket_name,
                 Key=file_key,
-                ContentType='video/mp4'
+                ContentType='video/mp4',
+                Metadata={
+                    'file_name': file_name
+                }
             )
 
             return {
