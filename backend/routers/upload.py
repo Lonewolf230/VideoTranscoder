@@ -44,13 +44,6 @@ def complete_upload(request: CompleteUploadRequest,db=Depends(get_db)):
         return complete_multipart_upload(upload_id=request.upload_id, parts=parts_dict,file_key=request.file_key,file_name=request.file_name,db=db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# @upload_router.get("/process_status")
-# def process_status(video_id:int,db=Depends(get_db)):
-#     try:
-#         return get_video_status(db=db,video_id=video_id)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
     
 @upload_router.get("/all-process-status")
 def all_process_status(db=Depends(get_db)):

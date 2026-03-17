@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, func
+from sqlalchemy import Column, Integer, String, TIMESTAMP, func,ForeignKey
 from configs.database import Base
 
 class Video(Base):
@@ -11,6 +11,8 @@ class Video(Base):
     status = Column(String, nullable=False, default="pending")
     
     file_name = Column(String, nullable=True)
+    
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     created_at = Column(
         TIMESTAMP,

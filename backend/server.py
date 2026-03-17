@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.upload import upload_router
+from routers.auth import auth_router
 from configs.database import Base,engine
-from configs.sqs import SQSClient
 app=FastAPI()
 
 origins=[
@@ -29,3 +29,4 @@ def generate_dummy_data():
 
 
 app.include_router(upload_router)
+app.include_router(auth_router)
