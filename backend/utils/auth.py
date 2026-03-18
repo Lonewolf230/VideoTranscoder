@@ -1,6 +1,13 @@
 import bcrypt
 from sqlalchemy.orm import Session
 from models.user import User
+import jwt
+import os
+from dotenv import load_dotenv
+load_dotenv()
+from fastapi import Request
+from datetime import datetime,timedelta
+
 
 def hash_password(password:str)->str:
     
@@ -35,10 +42,11 @@ def authenticate_user(user:User,db:Session):
     
     try:
         existing_user=db.query(User).filter(User.email == user.email).first()
-        if existing_user and verify_password(user.password,existing_user.password):
-            return existing_user
-        else:
-            return None
+        if not existing_user:
+            raise Exception("User not found")
+        if not verify_password(user.password,existing_user.password):
+            raise Exception("Invalid password")
+        return existing_user
     except Exception as e:
         print("Error authenticating user:", e)
         raise
@@ -46,3 +54,43 @@ def authenticate_user(user:User,db:Session):
     finally:
         db.close()
         
+        
+def generate_token(user:User)->tuple[str,str]:
+    """ Function to generate JWT token for authenticated users. """
+    try:
+        encoded_jwt_access_token = jwt.encode(
+            {
+                "user_id":user.id,
+                "type":"access",
+                "exp": datetime.now(datetime.timezone.utc) + timedelta(hours=1)
+            },os.getenv("JWT_SECRET"),algorithm="HS256")
+        
+        # finish refreshtoken and logout flow
+        
+        encoded_jwt_refresh_token = jwt.encode(
+            {
+                "user_id":user.id,
+                "type":"refresh",
+                "exp": datetime.now(datetime.timezone.utc) + timedelta(days=7)
+             },os.getenv("JWT_SECRET"),algorithm="HS256")    
+            
+        return encoded_jwt_access_token, encoded_jwt_refresh_token
+    except Exception as e:
+        print("Error generating token:", e)
+        raise
+    
+def get_current_user(request:Request)->int:
+    
+    try:
+        token=request.cookies.get("access_token")
+        if not token:
+            raise Exception("No access token provided")
+        decoded_token=jwt.decode(token,os.getenv("JWT_SECRET"),algorithms=["HS256"])
+        user_id=decoded_token.get("user_id")
+        print(f"Decoded token: {decoded_token}")
+        if not user_id:
+            raise Exception("Invalid token")
+        return user_id
+    except Exception as e:
+        print("Error getting current user:", e)
+        raise
