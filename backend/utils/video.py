@@ -1,59 +1,55 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from models.video import Video
+from exceptions import DatabaseError, VideoNotFoundError
 
-def create_video(db:Session,file_key:str,file_name:str)->Video:
+def create_video(db: Session, file_key: str, file_name: str, file_size: int):
     try:
-        new_video=Video(file_key=file_key,file_name=file_name)
-        db.add(new_video)
+        video = Video(
+            file_key=file_key,
+            file_name=file_name,
+            file_size=file_size
+        )
+        db.add(video)
         db.commit()
-        db.refresh(new_video)
-        print("Created video record with ID:", new_video.id)
-        return new_video
+        db.refresh(video)
+        return video
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print("Error creating video record:", e)
-        raise 
+        raise DatabaseError("Failed to create video")
 
-def get_video_status(db:Session,video_id:int):
-    try:
-        video=db.query(Video).filter(Video.id == video_id).first()
-        if video:
-            print(f"Video ID {video_id} status: {video.status}")
-            return video.status
-        else:
-            print(f"Video ID {video_id} not found")
-            return None
-    except Exception as e:
-        print("Error fetching video status:", e)
-        raise 
 
-def update_video_status(db:Session,video_id:int,status:str):
+def delete_video_record(db: Session, video_id: int):
     try:
-        video=db.query(Video).filter(Video.id == video_id).first()
+        video = db.query(Video).filter(Video.id == video_id).first()
         if video:
-            video.status=status
+            db.delete(video)
             db.commit()
-            print(f"Updated video ID {video_id} status to: {status}")
-        else:
-            print(f"Video ID {video_id} not found for status update")
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print("Error updating video status:", e)
-        raise 
-    
-def get_all_running_video_status(db:Session):
+
+
+def get_all_running_video_status(db: Session):
     try:
-        videos=db.query(Video).filter(Video.status != "completed").all()
-        return [{"id":v.id,"file_key":v.file_key,"status":v.status,"file_name":v.file_name} for v in videos]
-    except Exception as e:
-        print("Error fetching all video statuses:", e)
-        raise
-    
-def get_finished_videos(db:Session):
+        videos = db.query(Video).filter(Video.status != "completed").all()
+        return [
+            {
+                "id": v.id,
+                "file_key": v.file_key,
+                "status": v.status,
+                "file_name": v.file_name
+            }
+            for v in videos
+        ]
+    except Exception:
+        raise DatabaseError("Failed to fetch video statuses")
+
+
+def get_total_storage_for_user(user_id: int, db: Session):
     try:
-        videos=db.query(Video).filter(Video.status == "completed").all()
-        return [{"id":v.id,"file_key":v.file_key,"status":v.status,"file_name":v.file_name} for v in videos]
-    except Exception as e:
-        print("Error fetching finished videos:", e)
-        raise
+        total = db.query(Video).filter(Video.user_id == user_id)\
+            .with_entities(func.sum(Video.file_size)).scalar()
+        return total or 0
+    except Exception:
+        raise DatabaseError("Failed to calculate storage")

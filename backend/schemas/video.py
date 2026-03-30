@@ -4,6 +4,7 @@ class VideoCreate(BaseModel):
     file_key: str
     file_name : str = None
     user_id: int
+    file_size: int
     
 class VideoResponse(BaseModel):
     id: int
@@ -12,5 +13,6 @@ class VideoResponse(BaseModel):
     created_at: str
     user_id:int
     file_name: str 
-    # class Config:
-    #     orm_mode = True
+    
+    class Config:
+        from_attributes = True

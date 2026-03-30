@@ -1,6 +1,8 @@
 import boto3
 import os
 from dotenv import load_dotenv
+from exceptions import SQSMessageError
+from botocore.exceptions import ClientError,BotoCoreError
 load_dotenv()
 
 
@@ -21,9 +23,9 @@ class SQSClient:
                 MessageBody=message_body
             )
             print("Message sent to SQS successfully")
-        except Exception as e:
+        except (ClientError,BotoCoreError) as e:
             print("Error sending message to SQS:", e)
-            raise
+            raise SQSMessageError("Failed to send message") from e
             
     def receive_message(self,max_messages:int=1):
         

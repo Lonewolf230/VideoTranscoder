@@ -1,71 +1,66 @@
-from configs.s3config import s3
-from configs.sqs import sqs_client as sqs
+import os
+import json
+import uuid
 from dotenv import load_dotenv
 
-import json
+from configs.s3config import s3
+from configs.sqs import sqs_client as sqs
+from utils.video import create_video, delete_video_record
+from exceptions import S3UploadError, DatabaseError, SQSMessageError
+
 load_dotenv()
-import os
-import uuid
-from utils.video import create_video
+
+BUCKET = os.getenv("BUCKET_NAME")
 
 
-def generate_multipart_upload(file_name:str):
+def generate_multipart_upload(file_name: str):
+    file_key = f"videos/{uuid.uuid4()}"
 
-    try:
-        file_key = f"videos/{uuid.uuid4()}"
-        res = s3.create_multipart_upload(
-            bucket_name=os.getenv("BUCKET_NAME"),
-            file_key=file_key,
-            file_name=file_name
-        )
+    return s3.create_multipart_upload(
+        bucket_name=BUCKET,
+        file_key=file_key,
+        file_name=file_name
+    )
 
-        return res
-    except Exception as e:
-        print("Error creating multipart upload:", e)
-        raise 
 
-def generate_all_presigned_urls(upload_id:str,total_parts:int,file_key:str):
-    
-    try:
-        res = s3.generate_all_presigned_urls(
-            bucket_name=os.getenv("BUCKET_NAME"),
-            file_key=file_key,
-            upload_id=upload_id,
-            total_parts=total_parts
-        )
+def generate_all_presigned_urls(upload_id: str, total_parts: int, file_key: str):
+    return s3.generate_all_presigned_urls(
+        bucket_name=BUCKET,
+        file_key=file_key,
+        upload_id=upload_id,
+        total_parts=total_parts
+    )
 
-        return res
-    except Exception as e:
-        print("Error generating presigned URLs:", e)
-        raise 
 
-def complete_multipart_upload(upload_id:str, parts:list,file_key:str,db,file_name:str):
-    
-    try:   
-        s3.complete_multipart_upload(
-            bucket_name=os.getenv("BUCKET_NAME"),
+def complete_multipart_upload(upload_id, parts, file_key, db, file_name, file_size):
+
+    # STEP 1: complete upload
+    s3.complete_multipart_upload(
+            bucket_name=BUCKET,
             file_key=file_key,
             upload_id=upload_id,
             parts=parts
         )
-    except Exception as e:
-        print("Error completing multipart upload:", e)
-        raise
-    
+
+
+    # STEP 2: DB entry
     try:
-        vid_res=create_video(db=db,file_key=file_key,file_name=file_name)
-        message_body={
-            "file_key":vid_res.file_key,
-            "video_id":vid_res.id
-        }
-    except Exception as e:
-        print("Could not create video record in database:", e)
+        video = create_video(db, file_key, file_name, file_size)
+    except DatabaseError:
+        s3.delete_object(BUCKET, file_key)
         raise
-        
+
+    # STEP 3: send message
+    message = {
+        "file_key": video.file_key,
+        "video_id": video.id
+    }
+
     try:
-        sqs.send_message(json.dumps(message_body))
-    except Exception as e:
-        print("Error sending message to SQS:", e)
+        sqs.send_message(json.dumps(message))
+    except SQSMessageError:
+        delete_video_record(db, video.id)
+        s3.delete_object(BUCKET, file_key)
         raise
-        
-    return message_body
+
+    return message

@@ -1,9 +1,8 @@
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const base_url = "http://localhost:8000";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Part = {
   PartNumber: number;
@@ -98,6 +97,8 @@ function JobCard({
   };
 
   return (
+
+    
     <div
       className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 transition-all duration-200 hover:border-zinc-700"
       style={{ animation: "slideIn 0.25s ease-out both" }}
@@ -249,6 +250,7 @@ function Sidebar({
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const navigate = useNavigate();
   const upload_id = useRef<string | null>(null);
   const parts = useRef<Part[]>([]);
   const vidfile = useRef<File | null>(null);
@@ -416,6 +418,7 @@ export default function Home() {
           parts: parts.current,
           file_key: fileKey.current,
           file_name: file.name,
+          file_size: file.size
         }
       );
 
@@ -450,6 +453,15 @@ export default function Home() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await axios.post(`${base_url}/logout`, null, { withCredentials: true });
+      navigate("/")
+    } catch {
+      console.error("Logout failed, redirecting anyway");
+    } 
+  };
+
   const totalParts = fileSize ? Math.ceil(fileSize / (10 * 1024 * 1024)) : 0;
 
   const progressColor =
@@ -477,15 +489,25 @@ export default function Home() {
         <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
           <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
             <div className="mb-8">
-              <span className="text-xs font-semibold tracking-widest text-cyan-400 uppercase">
-                S3 Multipart
-              </span>
-              <h1 className="mt-1 text-2xl font-bold text-white tracking-tight">
-                Video Uploader
-              </h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                Select a file and hit upload — we handle the rest
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-xs font-semibold tracking-widest text-cyan-400 uppercase">
+                    S3 Multipart
+                  </span>
+                  <h1 className="mt-1 text-2xl font-bold text-white tracking-tight">
+                    Video Uploader
+                  </h1>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Select a file and hit upload — we handle the rest
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="shrink-0 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-800 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
 
             <label className="block w-full cursor-pointer mb-4">
