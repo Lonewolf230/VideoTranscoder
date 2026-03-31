@@ -26,6 +26,7 @@ type Job = {
   fileKey: string;    // from complete-multipart-upload response
   createdAt: string;  // ISO string from /process_status
   processStatus: ProcessStatus;
+  fileSize: number;
 };
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ const STATUS_CFG: Record<
     color: "text-zinc-400",
     dot: "bg-zinc-500 animate-pulse",
   },
-  uploaded:{
+  uploaded: {
     label: "Uploaded",
     color: "text-blue-400",
     dot: "bg-blue-400 animate-pulse",
@@ -78,13 +79,17 @@ const TERMINAL: ProcessStatus[] = ["completed", "failed"];
 
 function JobCard({
   job,
+  onDownload,
+  onDelete
 }: {
   job: Job;
+  onDownload: (video_id: number) => void;
+  onDelete: (video_id: number) => void;
 }) {
 
   const cfg = STATUS_CFG[job.processStatus];
   const isActive =
-    job.processStatus === "uploaded"||job.processStatus=="processing" || job.processStatus === "transcoding" || job.processStatus === "uploading_back";
+    job.processStatus === "uploaded" || job.processStatus == "processing" || job.processStatus === "transcoding" || job.processStatus === "uploading_back";
 
   const formatDate = (iso: string) => {
     if (!iso) return "—";
@@ -98,7 +103,7 @@ function JobCard({
 
   return (
 
-    
+
     <div
       className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 transition-all duration-200 hover:border-zinc-700"
       style={{ animation: "slideIn 0.25s ease-out both" }}
@@ -146,6 +151,19 @@ function JobCard({
       <p className="mt-3 text-xs text-zinc-700 tabular-nums">
         id #{job.videoId}
       </p>
+
+      {job.processStatus === "completed" && (
+        <div className="mt-3 flex items-center gap-2">
+          <button className="flex-1 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-1.5 text-xs font-semibold tracking-wide text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
+            onClick={() => onDelete(job.videoId)}>
+            Delete
+          </button>
+          <button className="flex-1 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold tracking-wide text-cyan-300 transition-colors hover:bg-cyan-500/20 hover:text-cyan-200"
+            onClick={() => onDownload(job.videoId)}>
+            Download
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -154,13 +172,17 @@ function JobCard({
 
 function Sidebar({
   jobs,
+  storageUsed,
   onClear,
+  onDownload,
+  onDelete
 }: {
   jobs: Job[];
+  storageUsed: number | null;
   onClear: () => void;
+  onDownload: (video_id: number) => void;
+  onDelete: (video_id: number) => void;
 }) {
-
-
   return (
     <div className="w-80 shrink-0 flex flex-col h-screen bg-zinc-950 border-l border-zinc-800/70">
       {/* Header */}
@@ -213,35 +235,52 @@ function Sidebar({
         )}
       </div>
 
-      {/* Job list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full pb-16 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-3">
-              <svg
-                className="w-5 h-5 text-zinc-700"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* Job list — 70% */}
+        <div className="flex-[7] overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+          {jobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full pb-16 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-3">
+                <svg className="w-5 h-5 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <p className="text-sm text-zinc-600">No uploads yet</p>
+              <p className="text-xs text-zinc-700 mt-1">Jobs appear here after upload completes</p>
             </div>
-            <p className="text-sm text-zinc-600">No uploads yet</p>
-            <p className="text-xs text-zinc-700 mt-1">
-              Jobs appear here after upload completes
-            </p>
-          </div>
-        ) : (
-          [...jobs].reverse().map((job) => (
-            <JobCard key={job.videoId} job={job} />
-          ))
-        )}
+          ) : (
+            [...jobs].reverse().map((job) => <JobCard key={job.videoId} job={job} onDownload={onDownload} onDelete={onDelete} />)
+          )}
+        </div>
+
+        {/* Storage panel — 30% */}
+        <div className="flex-[3] border-t border-zinc-800 px-5 py-4 flex flex-col justify-center gap-3 bg-zinc-950 min-h-0">
+          <p className="text-xs font-semibold tracking-widest text-zinc-500 uppercase">Storage</p>
+
+          {storageUsed === null ? (
+            <p className="text-sm text-zinc-600 animate-pulse">Loading…</p>
+          ) : (
+            <>
+              {/* Bar */}
+              <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 transition-all duration-700"
+                  style={{ width: `${Math.min((storageUsed / (5 * 1024 ** 3)) * 100, 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm font-bold text-white">
+                  {(storageUsed / 1024 ** 3).toFixed(2)} GB
+                </span>
+                <span className="text-xs text-zinc-600">of 5 GB</span>
+              </div>
+              {/* Warn if >80% */}
+              {storageUsed / (5 * 1024 ** 3) > 0.8 && (
+                <p className="text-xs text-amber-400">⚠ Running low on storage</p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -263,6 +302,7 @@ export default function Home() {
   const [phaseLabel, setPhaseLabel] = useState("");
 
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [storageUsed, setStorageUsed] = useState<number | null>(null);
 
   const formatSize = (bytes: number) => {
     if (bytes >= 1e9) return (bytes / 1e9).toFixed(2) + " GB";
@@ -274,24 +314,68 @@ export default function Home() {
   const jobsRef = useRef<Job[]>([]);
   useEffect(() => { jobsRef.current = jobs; }, [jobs]);
 
+  const refreshStorageUsed = async () => {
+    try {
+      const res = await axios.get(`${base_url}/total-storage`, { withCredentials: true });
+      setStorageUsed(res.data.storage_used);
+    } catch (err) {
+      console.error("Failed to fetch storage used:", err);
+    }
+  };
+
+  useEffect(() => {
+    refreshStorageUsed();
+  }, []);
+
   useEffect(() => {
     // Initial load — no early-return guard needed
     const fetchAll = async () => {
       try {
         const res = await axios.get(`${base_url}/all-process-status`);
-        const data: { id: number; file_key: string; status: ProcessStatus; created_at: string, file_name: string }[] = res.data;
+        const data: { id: number; file_key: string; status: ProcessStatus; created_at: string, file_name: string, file_size: number }[] = res.data;
         setJobs(data.map(d => ({
           videoId: d.id,
           fileKey: d.file_key,
           createdAt: d.created_at,
           processStatus: d.status,
           fileName: d.file_name,
+          fileSize: d.file_size
         })));
       } catch { /* ignore */ }
     };
 
     fetchAll();
   }, []);
+
+  const deleteFile = async (video_id: number) => {
+    try {
+      await axios.delete(base_url + "/delete-file", {
+        params: {
+          video_id: video_id
+        },
+        withCredentials: true
+      });
+      setJobs(prev => prev.filter(job => job.videoId !== video_id));
+      refreshStorageUsed();
+    } catch (err) {
+      console.error("Failed to delete file:", err);
+    }
+  }
+
+  const downloadFileWithTranscodedVersions = async (video_id: number) => {
+    try {
+      const res = await axios.get(base_url + "/download-file", {
+        params: {
+          video_id: video_id
+        },
+        withCredentials: true
+      });
+
+    }
+    catch (err) {
+      console.error("Failed to download file:", err);
+    }
+  }
 
   useEffect(() => {
     const poll = async () => {
@@ -357,9 +441,11 @@ export default function Home() {
       setPhaseLabel("Initialising upload…");
       setProgress(0);
 
-      const initRes = await axios.post(base_url + "/create-multipart-upload",null,{
-        params:{
+      const initRes = await axios.post(base_url + "/create-multipart-upload", null, {
+        withCredentials: true,
+        params: {
           file_name: file.name,
+          file_size: file.size
         }
       });
       upload_id.current = initRes.data.upload_id;
@@ -419,14 +505,16 @@ export default function Home() {
           file_key: fileKey.current,
           file_name: file.name,
           file_size: file.size
-        }
+        },
+        { withCredentials: true }
       );
 
-      console.log(completeRes)
+      // console.log(completeRes)
 
       setProgress(100);
       setPhaseLabel("Upload complete!");
       setStatus("done");
+      setStorageUsed((prev) => (prev ?? 0) + file.size);
 
       // ── Push to sidebar ────────────────────────────────────────────────────
       const { file_key, video_id } = completeRes.data as {
@@ -444,10 +532,19 @@ export default function Home() {
           fileKey: file_key,
           createdAt: "",          // populated on first poll
           processStatus: "pending",
+          fileSize: file.size
         },
       ]);
-    } catch (err) {
-      console.error("[ERROR]", err);
+
+      // Sync with server value after optimistic increment.
+      refreshStorageUsed();
+    } catch (err: any) {
+      if (err.response) {
+        console.error("Backend error:", err.response.data);
+        console.error("Message:", err.response.data.detail);
+      } else {
+        console.error("Network error:", err.message);
+      }
       setStatus("error");
       setPhaseLabel("Something went wrong.");
     }
@@ -459,7 +556,7 @@ export default function Home() {
       navigate("/")
     } catch {
       console.error("Logout failed, redirecting anyway");
-    } 
+    }
   };
 
   const totalParts = fileSize ? Math.ceil(fileSize / (10 * 1024 * 1024)) : 0;
@@ -600,7 +697,10 @@ export default function Home() {
         {/* ── Sidebar ── */}
         <Sidebar
           jobs={jobs}
+          storageUsed={storageUsed}
           onClear={() => setJobs([])}
+          onDownload={downloadFileWithTranscodedVersions}
+          onDelete={deleteFile}
         />
       </div>
     </>

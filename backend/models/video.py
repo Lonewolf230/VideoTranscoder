@@ -13,6 +13,8 @@ class Video(Base):
     file_name = Column(String, nullable=True)
     
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    file_size= Column(Integer, nullable=False)
 
     created_at = Column(
         TIMESTAMP,

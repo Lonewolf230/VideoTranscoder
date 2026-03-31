@@ -2,32 +2,54 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { JSX } from "react";
+import axios from "axios";
 
 export default function ProtectedRoute({ children }: { children: JSX.Element }) {
-  const [loading, setLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [authenticated, setAuthenticated] = useState(false);
 
-  useEffect(() => {
-    fetch("http://localhost:8000/me", {
-      credentials: "include",
-    })
-      .then((res) => {
-        if (res.ok) {
-          setAuthenticated(true);
-        } else {
-          setAuthenticated(false);
-        }
-      })
-      .catch(() => setAuthenticated(false))
-      .finally(() => setLoading(false));
-  }, []);
+    useEffect(() => {
+        const checkAuth = async () => {
+            try {
+                await axios.get("http://localhost:8000/me", {
+                    withCredentials: true,
+                });
 
-  if (loading) return <div>Loading...</div>;
+                setAuthenticated(true);
 
-  if (!authenticated) {
-    return <Navigate to="/" replace />;
-  }
+            } catch (error) {
+                // access token failed → try refresh
+                try {
+                    console.log("Access token expired or invalid. Attempting to refresh...");
+                    await axios.post("http://localhost:8000/refresh", {}, {
+                        withCredentials: true,
+                    });
+                    console.log("Access token refreshed successfully. Verifying...");
+                    // try /me again AFTER refresh
+                    await axios.get("http://localhost:8000/me", {
+                        withCredentials: true,
+                    });
 
-  return children;
+                    setAuthenticated(true);
+
+                } catch (refreshError) {
+                    console.error("Failed to refresh access token.", refreshError);
+                    setAuthenticated(false);
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkAuth();
+    }, []);
+
+    if (loading) return <div>Loading...</div>;
+
+    if (!authenticated) {
+        return <Navigate to="/" replace />;
+    }
+
+    return children;
 }
 

@@ -10,6 +10,9 @@ class VideoNotFoundError(Exception):
 class SQSMessageError(Exception):
     pass
 
+class UnAuthorizedError(Exception):
+    pass
+
 class UserCreationFailedError(Exception):
     pass
 

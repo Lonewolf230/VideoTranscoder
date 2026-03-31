@@ -20,7 +20,7 @@ class SQSClient:
         try:
             self.client.send_message(
                 QueueUrl=os.getenv("SQS_URL"),
-                MessageBody=message_body
+                MessageBody=message_body,
             )
             print("Message sent to SQS successfully")
         except (ClientError,BotoCoreError) as e:
@@ -33,7 +33,8 @@ class SQSClient:
             response = self.client.receive_message(
                 QueueUrl=os.getenv("SQS_URL"),
                 MaxNumberOfMessages=max_messages,
-                WaitTimeSeconds=20
+                WaitTimeSeconds=20,
+                VisibilityTimeout=900
             )
             return response.get('Messages', [])
         except Exception as e:

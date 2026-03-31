@@ -2,7 +2,7 @@ from configs.sqs import sqs_client as sqs
 from configs.s3config import s3
 from .transcoder import transcode_video
 from .upload_files import upload_files
-from utils.video import update_video_status
+from utils.video import update_video_status,get_video_status
 from configs.database import get_db
 import os
 from dotenv import load_dotenv
@@ -29,14 +29,20 @@ def worker():
             if not message:
                 print("No messages in the queue, waiting...")
                 continue
-            
+                        
             print(f"Received message: {message}")
             message_body=json.loads(message[0]['Body'])
             receipt_handle=message[0]['ReceiptHandle']
             file_key=message_body['file_key']
             video_id=message_body['video_id']
             
-            
+            vid_status=get_video_status(db=db, video_id=video_id)
+            if vid_status == "deleting":
+                print(f"Video ID: {video_id} is marked for deletion, skipping processing.")
+                continue
+
+
+            print(f"Processing video ID: {video_id} with file key: {file_key}")
             
             download_path = file_key.split('/')[1]
             print(f"Download path : {download_path}")

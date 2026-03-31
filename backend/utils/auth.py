@@ -71,20 +71,21 @@ def generate_token(user: UserResponse) -> tuple[str, str, str]:
 
 def get_current_user(request: Request) -> int:
     token = request.cookies.get("access_token")
+    print(token)
     if not token:
-        raise JWTTokenError(status_code=401,message="No access token provided")
+        raise HTTPException(status_code=401,detail="No access token provided")
     try:
         decoded = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
-        raise JWTTokenError(status_code=401,message="Access token has expired")
+        raise HTTPException(status_code=401,detail="Access token has expired")
     except jwt.InvalidTokenError:
-        raise JWTTokenError(status_code=401,message="Invalid access token")
+        raise HTTPException(status_code=401,detail="Invalid access token")
 
     if decoded.get("type") != "access":
-        raise JWTTokenError(status_code=401,message="Invalid token type")
+        raise HTTPException(status_code=401,detail="Invalid token type")
     user_id = decoded.get("user_id")
     if not user_id:
-        raise JWTTokenError(status_code=401,message="Malformed token")
+        raise HTTPException(status_code=401,detail="Malformed token")
     return user_id
 
 def decode_token(token: str) -> dict:

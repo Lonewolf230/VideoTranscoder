@@ -63,18 +63,17 @@ def logout_endpoint(request: Request, response: Response):
 
 @auth_router.post("/refresh")
 def refresh_token_endpoint(request: Request, response: Response):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token provided")
+    
     try:
-        
-        refresh_token = request.cookies.get("refresh_token")
-        if not refresh_token:
-            raise HTTPException(status_code=401, detail="No refresh token provided")
-
         new_access_token = refresh_access_token(refresh_token)
         response.set_cookie(key="access_token", value=new_access_token,
                             httponly=True, samesite="lax", secure=False, max_age=3600)
         return {"message": "Access token refreshed successfully!"}
     except JWTTokenError as e:
-        return HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to refresh access token: " + str(e))
 
