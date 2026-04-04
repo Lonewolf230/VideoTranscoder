@@ -18,7 +18,8 @@ type ProcessStatus =
   | "transcoding"
   | "uploading_back"
   | "completed"
-  | "failed";
+  | "failed"
+  | "deleting";
 
 type Job = {
   videoId: number;
@@ -71,6 +72,11 @@ const STATUS_CFG: Record<
     label: "Uploading Back",
     color: "text-blue-400",
     dot: "bg-blue-400 animate-pulse",
+  },
+  deleting: {
+    label: "Deleting",
+    color: "text-rose-400",
+    dot: "bg-rose-400 animate-pulse",
   }
 };
 
@@ -349,10 +355,7 @@ export default function Home() {
 
   const deleteFile = async (video_id: number) => {
     try {
-      await axios.delete(base_url + "/delete-file", {
-        params: {
-          video_id: video_id
-        },
+      await axios.delete(base_url + "/delete-video/"+video_id, {
         withCredentials: true
       });
       setJobs(prev => prev.filter(job => job.videoId !== video_id));
@@ -364,12 +367,23 @@ export default function Home() {
 
   const downloadFileWithTranscodedVersions = async (video_id: number) => {
     try {
-      const res = await axios.get(base_url + "/download-file", {
-        params: {
-          video_id: video_id
-        },
+      const res = await axios.get(base_url + "/presigned-download-urls/" + video_id, {
         withCredentials: true
       });
+
+      const urls: string[] = res.data
+      console.log("Received presigned URLs:", urls);
+      // download them all at the same time
+      urls.forEach((url,i) => {
+        setTimeout(() => {
+          const link = document.createElement("a");
+          link.href = url
+          link.download = ""
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        },i*1000)
+      })
 
     }
     catch (err) {

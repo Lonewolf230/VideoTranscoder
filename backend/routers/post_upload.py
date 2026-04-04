@@ -26,9 +26,11 @@ def delete_video(video_id: int,db=Depends(get_db),user_id=Depends(get_current_us
         raise HTTPException(status_code=502, detail=f"S3 error: {str(e)}")
     
     except DatabaseError as e:
+        print(f"Database error while deleting video {video_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     except Exception as e:
+        print(f"Unexpected error while deleting video {video_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 @post_upload_router.get("/presigned-download-urls/{video_id}")

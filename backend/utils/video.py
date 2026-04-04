@@ -46,7 +46,7 @@ def delete_video_record(db: Session, video_id: int):
         if video:
             db.delete(video)
             db.commit()
-    except Exception:
+    except Exception as e:
         db.rollback()
         raise DatabaseError("Failed to delete video record") from e
 
@@ -99,17 +99,11 @@ def get_video_data(db:Session,video_id:int):
         raise DatabaseError("Failed to fetch video data") from e
     
 def delete_videos_from_s3(file_key:str):
-    
-    s3.delete_object(Bucket=os.getenv("BUCKET_NAME"), Key=file_key)
-        
-    transcoded_file_paths = [
-        file_key.replace("videos/", "transcoded_videos/")+f"_{res}"
-        for res in ["720p", "480p"]
-    ]
-        
-    for path in transcoded_file_paths:
-        s3.delete_object(Bucket=os.getenv("BUCKET_NAME"), Key=path)
-        
+    print(f"Deleting video with file key {file_key} from S3")
+    transcoded_keys= [file_key.replace("videos/","transcoded_videos/")+f"_{res}" for res in ["720p", "480p"]]
+    file_keys=[file_key] + transcoded_keys
+    s3.delete_objects(bucket_name=os.getenv("BUCKET_NAME"), file_keys=file_keys)
+
 def get_presigned_download_urls_s3(video_id:int, db:Session,user_id:int)-> list:
     video : Video = get_video_data(db=db,video_id=video_id)
     

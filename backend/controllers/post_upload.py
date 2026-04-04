@@ -12,6 +12,7 @@ def delete_video(video_id:int,db:Session,user_id:int):
         raise UnAuthorizedError("Unauthorized to delete this video")
 
     if video:
+        print("Video",video.file_key)
         update_video_status(db=db, video_id=video_id, status="deleting")
         delete_videos_from_s3(video.file_key)
         delete_video_record(db=db, video_id=video_id)
