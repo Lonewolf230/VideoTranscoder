@@ -5,9 +5,10 @@ from routers.auth import auth_router
 from routers.post_upload import post_upload_router
 from configs.database import Base,engine
 app=FastAPI()
+import os
 
 origins=[
-    "http://localhost:5173",
+    os.getenv("FRONTEND_URL","http://localhost:5173")
 ]
 
 #not the ideal way but for now we can create tables like this, later we can use alembic for migrations

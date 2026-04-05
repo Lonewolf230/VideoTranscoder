@@ -229,3 +229,172 @@ G --> H
 M --> H
 ```
 
+
+# Docker Setup
+
+This project uses Docker to run a multi-service architecture:
+
+-   **Frontend** (React/Vite → Nginx)
+-   **Backend** (FastAPI)
+-   **Worker** (SQS consumer + ffmpeg)
+
+------------------------------------------------------------------------
+
+## Project Structure
+
+    .
+    ├── backend/
+    ├── workers/
+    ├── frontend/
+    └── docker-compose.yml
+
+------------------------------------------------------------------------
+
+
+## Environment Variables
+
+Create `.env` files for each service.
+
+### Backend
+
+    cp backend/.env.example backend/.env
+
+Example:
+
+    FRONTEND_URL=http://localhost:5173
+    REDIS_URL=...
+    AWS_REGION=...
+
+------------------------------------------------------------------------
+
+### Worker
+
+    cp workers/.env.example workers/.env
+
+Example:
+
+    AWS_ACCESS_KEY_ID=...
+    AWS_SECRET_ACCESS_KEY=...
+    AWS_REGION=...
+    SQS_QUEUE_URL=...
+
+------------------------------------------------------------------------
+
+### Frontend (for local development only)
+
+    cp frontend/.env.example frontend/.env
+
+Example:
+
+    VITE_API_URL=http://localhost:8000
+
+> Frontend `.env` is only for local dev. Docker uses build args.
+
+------------------------------------------------------------------------
+
+## unning the Application
+
+    docker-compose up --build
+
+------------------------------------------------------------------------
+
+## Services
+
+  Service    URL
+  ---------- -----------------------
+  Frontend   http://localhost:5173
+  Backend    http://localhost:8000
+
+------------------------------------------------------------------------
+
+## How It Works
+
+### Frontend → Backend
+
+Browser loads frontend at:
+
+    http://localhost:5173
+
+API calls go to:
+
+    http://localhost:8000
+
+Docker forwards traffic to the backend container.
+
+------------------------------------------------------------------------
+
+### Container Networking
+
+Inside Docker:
+
+    http://backend:8000
+
+Works only between containers, not in browser.
+
+------------------------------------------------------------------------
+
+## Key Concepts
+
+### Port Mapping
+
+    8000:8000 → backend
+    5173:80   → frontend
+
+Left = host, Right = container.
+
+------------------------------------------------------------------------
+
+### Frontend Env
+
+-   Injected at build time
+-   Not used at runtime
+
+------------------------------------------------------------------------
+
+### Backend CORS
+
+    FRONTEND_URL=http://localhost:5173
+
+------------------------------------------------------------------------
+
+## Common Issues
+
+### Backend not reachable
+
+Ensure:
+
+    8000:8000
+
+------------------------------------------------------------------------
+
+### CORS errors
+
+Check frontend URL matches:
+
+    http://localhost:5173
+
+------------------------------------------------------------------------
+
+### API errors
+
+Do NOT use:
+
+    http://backend:8000
+
+Use:
+
+    http://localhost:8000
+
+------------------------------------------------------------------------
+
+## Stop Containers
+
+    docker-compose down
+
+------------------------------------------------------------------------
+
+## Rebuild
+
+    docker-compose up --build
+
+------------------------------------------------------------------------
