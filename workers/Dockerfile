@@ -5,11 +5,11 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY workers/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY workers ./workers
 
-CMD ["python","-m","workers.worker"]
+CMD ["python","-u","-m","workers.worker"]
 

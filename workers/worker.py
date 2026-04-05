@@ -5,13 +5,12 @@ from workers.upload_files import upload_files
 from workers.video import update_video_status,get_video_status
 from workers.database import SessionLocal
 import os
-from dotenv import load_dotenv
-load_dotenv()
 import json
 import time
 
 
 def worker():
+    print("Worker started")
     while True:
         flag=True
         db=None
@@ -60,7 +59,6 @@ def worker():
             
             if not os.path.exists(download_path + ".mp4"):
                 s3.download_object(
-                    bucket_name=os.getenv("BUCKET_NAME"),
                     file_key=file_key,
                     download_path=download_path + ".mp4"  
                 )
