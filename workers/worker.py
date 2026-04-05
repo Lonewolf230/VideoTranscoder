@@ -1,9 +1,9 @@
-from configs.sqs import sqs_client as sqs
-from configs.s3config import s3
-from .transcoder import transcode_video
-from .upload_files import upload_files
-from utils.video import update_video_status,get_video_status
-from configs.database import get_db
+from workers.sqs import sqs_client as sqs
+from workers.s3config import s3
+from workers.transcoder import transcode_video
+from workers.upload_files import upload_files
+from workers.video import update_video_status,get_video_status
+from workers.database import SessionLocal
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -20,7 +20,7 @@ def worker():
         receipt_handle=None
         download_path=None
         try:
-            db=next(get_db())
+            db=SessionLocal()
             print("Checking for messages in the queue...")
             print(f"Current time: {time.strftime('%Y-%m-%d %H:%M:%S')} before receive")
             message=sqs.receive_message()

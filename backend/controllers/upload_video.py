@@ -10,21 +10,17 @@ from exceptions import S3UploadError, DatabaseError, SQSMessageError
 
 load_dotenv()
 
-BUCKET = os.getenv("BUCKET_NAME")
-
 
 def generate_multipart_upload(file_name: str):
     file_key = f"videos/{uuid.uuid4()}"
 
     return s3.create_multipart_upload(
-        bucket_name=BUCKET,
         file_key=file_key,
         file_name=file_name
     )
 
 def generate_presigned_url(upload_id: str, part_number: int, file_key: str):
     return s3.generate_presigned_url(
-        bucket_name=BUCKET,
         file_key=file_key,
         upload_id=upload_id,
         part_number=part_number
@@ -32,7 +28,6 @@ def generate_presigned_url(upload_id: str, part_number: int, file_key: str):
 
 def generate_all_presigned_urls(upload_id: str, total_parts: int, file_key: str):
     return s3.generate_all_presigned_urls(
-        bucket_name=BUCKET,
         file_key=file_key,
         upload_id=upload_id,
         total_parts=total_parts
@@ -43,7 +38,6 @@ def complete_multipart_upload(upload_id:str, parts:list, file_key:str, db: Sessi
 
     # STEP 1: complete upload
     s3.complete_multipart_upload(
-            bucket_name=BUCKET,
             file_key=file_key,
             upload_id=upload_id,
             parts=parts
@@ -54,7 +48,7 @@ def complete_multipart_upload(upload_id:str, parts:list, file_key:str, db: Sessi
     try:
         video = create_video(db, file_key, file_name, file_size,user_id)
     except DatabaseError:
-        s3.delete_object(BUCKET, file_key)
+        s3.delete_object(file_key)
         raise
 
     # STEP 3: send message
@@ -68,7 +62,7 @@ def complete_multipart_upload(upload_id:str, parts:list, file_key:str, db: Sessi
         print(f"Message sent to SQS for video ID: {video.id}")
     except SQSMessageError:
         delete_video_record(db, video.id)
-        s3.delete_object(BUCKET, file_key)
+        s3.delete_object(file_key)
         raise
 
     return message

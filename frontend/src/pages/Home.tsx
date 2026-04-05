@@ -2,7 +2,7 @@ import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const base_url = "http://localhost:8000";
+const base_url = import.meta.env.VITE_BASE_URL || "http://localhost:8000";
 
 type Part = {
   PartNumber: number;

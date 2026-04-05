@@ -102,7 +102,7 @@ def delete_videos_from_s3(file_key:str):
     print(f"Deleting video with file key {file_key} from S3")
     transcoded_keys= [file_key.replace("videos/","transcoded_videos/")+f"_{res}" for res in ["720p", "480p"]]
     file_keys=[file_key] + transcoded_keys
-    s3.delete_objects(bucket_name=os.getenv("BUCKET_NAME"), file_keys=file_keys)
+    s3.delete_objects(file_keys=file_keys)
 
 def get_presigned_download_urls_s3(video_id:int, db:Session,user_id:int)-> list:
     video : Video = get_video_data(db=db,video_id=video_id)
@@ -114,7 +114,6 @@ def get_presigned_download_urls_s3(video_id:int, db:Session,user_id:int)-> list:
         raise UnAuthorizedError("Unauthorized to access this video")
     
     urls = s3.get_all_download_presigned_urls(
-            bucket_name=os.getenv("BUCKET_NAME"),
             file_key=video.file_key,
             expires_in=3600
         )
