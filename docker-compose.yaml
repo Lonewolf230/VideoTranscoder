@@ -18,6 +18,7 @@ services:
     container_name: workers
     env_file:
       - ./workers/.env
+    scale: 2
     restart: always
     
   frontend:
